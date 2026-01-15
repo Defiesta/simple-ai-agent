@@ -776,6 +776,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "guests",
+ "hex",
  "risc0-zkvm",
  "sha2",
  "tokio",

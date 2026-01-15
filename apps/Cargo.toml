@@ -7,9 +7,10 @@ publish = false
 [dependencies]
 alloy = { workspace = true, features = ["sol-types", "signers", "signer-local"] }
 anyhow = { workspace = true }
-boundless-market = { workspace = true }
+boundless-market.workspace = true
 bytemuck = { workspace = true }
 clap = { workspace = true }
+hex = "0.4"
 dotenvy = { workspace = true }
 guests = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = true }
