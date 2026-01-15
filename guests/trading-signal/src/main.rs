@@ -99,16 +99,12 @@ fn linear_regression() -> (i64, i64, u64) {
 }
 
 fn main() {
-    // Read the input data - this is the amount of wei that represents the current USD value
-    // For example: if ETH price is $3200, then 3700000000000000000 wei = 3.7 ETH = $11,840 worth
+    // Read the input data - this is the current USD price per ETH
+    // For example: 3200 means $3200 per ETH
     let mut input_bytes = Vec::<u8>::new();
     env::stdin().read_to_end(&mut input_bytes).unwrap();
-    let current_eth_amount = <U256>::abi_decode(&input_bytes).unwrap();
-    let current_eth_amount_wei = current_eth_amount.as_limbs()[0];
-    
-    // We need to assume a current USD price per ETH to make sense of the input
-    // Let's assume current ETH price is $3200 (around the average of our historical data)
-    let assumed_current_usd_price_per_eth = 3200u64;
+    let current_usd_price = <U256>::abi_decode(&input_bytes).unwrap();
+    let current_usd_price_per_eth = current_usd_price.as_limbs()[0];
     
     // Perform linear regression on USD prices
     let (slope, intercept, confidence) = linear_regression();
@@ -117,25 +113,16 @@ fn main() {
     let next_day = 31i64;
     let predicted_usd_price_per_eth = (slope * next_day + intercept) as u64;
     
-    // Convert predicted USD price back to wei equivalent
-    // If predicted price is $3400 per ETH, and we have 3.7 ETH worth in wei,
-    // then predicted value = (3400/3200) * current_eth_amount_wei
-    let predicted_price_wei = if assumed_current_usd_price_per_eth > 0 {
-        (current_eth_amount_wei * predicted_usd_price_per_eth) / assumed_current_usd_price_per_eth
-    } else {
-        current_eth_amount_wei
-    };
-    
     // Generate trading signal
     // BUY (1) if predicted USD price is > 0.5% higher than current USD price
     // SELL (0) otherwise
-    let price_threshold = assumed_current_usd_price_per_eth + (assumed_current_usd_price_per_eth / 200); // 0.5% increase
+    let price_threshold = current_usd_price_per_eth + (current_usd_price_per_eth / 200); // 0.5% increase
     let signal = if predicted_usd_price_per_eth > price_threshold { 1u8 } else { 0u8 };
     
     // Create the exact same journal format as the contract expects: abi.encode(uint8, uint256, uint256)  
-    // Prepare the values - use proper Solidity ABI encoding matching exactly what the contract test does
+    // Output format: (signal, confidence_percentage, predicted_usd_price)
     let confidence_u256 = U256::from(confidence);
-    let price_u256 = U256::from(predicted_price_wei);
+    let price_u256 = U256::from(predicted_usd_price_per_eth);
     
     // Use manual encoding that exactly matches Solidity's abi.encode for (uint8, uint256, uint256)
     let mut journal_data = Vec::new();
