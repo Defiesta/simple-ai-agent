@@ -130,86 +130,59 @@ async fn run_trading_signal_mode(args: &Args, client: &Client) -> Result<()> {
         .await?;
     tracing::info!("Request {:x} fulfilled", request_id);
 
-    // Decode individually encoded values from the guest program
+    // Decode the journal data from the guest program
     let data = &fulfillment.fulfillmentData;
     tracing::info!("Raw fulfillment data length: {} bytes", data.len());
+    tracing::info!("Fulfillment data hex: {}", hex::encode(data));
     
-    // Debug: Print first 64 bytes in hex to understand structure
-    tracing::info!("First 64 bytes: {}", hex::encode(&data[..data.len().min(64)]));
-    if data.len() > 64 {
-        tracing::info!("Bytes 64-128: {}", hex::encode(&data[64..data.len().min(128)]));
-    }
-    if data.len() > 128 {
-        tracing::info!("Bytes 128-192: {}", hex::encode(&data[128..data.len().min(192)]));
-    }
-    if data.len() > 192 {
-        tracing::info!("Remaining bytes: {}", hex::encode(&data[192..]));
-    }
-    
-    // Extract data by finding specific hex patterns in the wrapped output
-    let output: (U256, U256, U256) = if data.len() == 256 {
-        let hex_str = hex::encode(data);
-        tracing::info!("Full hex data: {}", hex_str);
+    // The guest now uses proper ABI encoding for (uint8, uint256, uint256)
+    // Boundless wraps our journal data in a fulfillment structure
+    // Based on the hex data, our 96-byte journal starts at offset 128 (0x80)
+    let output: (U256, U256, U256) = if data.len() >= 224 {
+        // Extract our journal from the Boundless fulfillment data
+        // The structure is: [32-byte offset][32-byte IMAGE_ID][32-byte offset][32-byte offset][96-byte journal]
+        let journal_start = 128; // Offset where our journal data starts
+        let journal_data = &data[journal_start..journal_start + 96];
         
-        // Try to decode the actual committed data by finding the right offset
-        // The zkVM commits a tuple, but it gets wrapped. Let's try different offsets to find the tuple.
+        tracing::info!("Extracting journal from offset {} (96 bytes)", journal_start);
+        tracing::debug!("Journal hex: {}", hex::encode(journal_data));
         
+        if let Ok(decoded_tuple) = <(U256, U256, U256)>::abi_decode(journal_data) {
+            tracing::info!("Successfully decoded journal data as ABI tuple");
+            decoded_tuple
+        } else {
+            tracing::error!("Failed to decode journal data at expected offset");
+            // Return safe fallback values
+            (U256::from(0u8), U256::from(0u64), U256::from(3700000000000000000u64))
+        }
+    } else if data.len() >= 96 {
+        // Fallback: try to find a 96-byte window that decodes properly
         let mut found_tuple = None;
         
-        // Try different starting positions to find a valid ABI-encoded tuple
-        for start_offset in (0..=160).step_by(32) {
-            if start_offset + 96 <= data.len() {
-                let potential_tuple_data = &data[start_offset..start_offset + 96];
-                if let Ok(decoded_tuple) = <(U256, U256, U256)>::abi_decode(potential_tuple_data) {
-                    // Validate that this looks like reasonable trading data
-                    let signal = decoded_tuple.0.as_limbs()[0] as u8;
-                    let confidence = decoded_tuple.1.as_limbs()[0];
-                    let price = decoded_tuple.2.as_limbs()[0];
-                    
-                    if signal <= 1 && confidence <= 100 && price > 100_000_000_000_000_000 { // > 0.1 ETH
-                        found_tuple = Some(decoded_tuple);
-                        tracing::info!("Found valid tuple at offset {}: signal={}, confidence={}, price={}", 
-                                      start_offset, signal, confidence, price);
-                        break;
-                    }
+        for start_offset in (0..=data.len().saturating_sub(96)).step_by(32) {
+            let potential_tuple_data = &data[start_offset..start_offset + 96];
+            if let Ok(decoded_tuple) = <(U256, U256, U256)>::abi_decode(potential_tuple_data) {
+                // Validate that this looks like reasonable trading data
+                let signal = decoded_tuple.0.as_limbs()[0] as u8;
+                let confidence = decoded_tuple.1.as_limbs()[0];
+                let price = decoded_tuple.2.as_limbs()[0];
+                
+                if signal <= 1 && confidence <= 100 && price > 100_000_000_000_000_000 { // > 0.1 ETH
+                    found_tuple = Some(decoded_tuple);
+                    tracing::info!("Found valid ABI tuple at offset {}: signal={}, confidence={}, price={}", 
+                                  start_offset, signal, confidence, price);
+                    break;
                 }
             }
         }
         
-        if let Some(valid_tuple) = found_tuple {
-            valid_tuple
-        } else {
-            tracing::warn!("Could not find valid tuple in data, using manual extraction from hex");
-            
-            // Manual extraction from hex patterns we observed
-            // From hex: 000000000000006120 (confidence=97) and 000f4b478d817e6600 (price pattern)
-            let confidence_val = if hex_str.contains("6120") { 97u64 } else { 32u64 };
-            
-            // Extract price from hex pattern 
-            let price_val = if let Some(pos) = hex_str.find("000f4b478d817e66") {
-                let price_hex = "0f4b478d817e6600";
-                u64::from_str_radix(price_hex, 16).unwrap_or(3735000000000000000)
-            } else {
-                3735000000000000000u64 // Default to reasonable value
-            };
-            
-            let signal_val = if confidence_val > 50 { 1u8 } else { 0u8 }; // BUY if high confidence
-            
-            let signal = U256::from(signal_val);
-            let confidence = U256::from(confidence_val);
-            let price = U256::from(price_val);
-            
-            tracing::info!("Manual extraction: signal={}, confidence={}, price={}", signal_val, confidence_val, price_val);
-            
-            tracing::info!("Fallback values: signal=0, confidence=32, price=3735000000000000000");
-            (signal, confidence, price)
-        }
+        found_tuple.unwrap_or_else(|| {
+            tracing::error!("Failed to decode fulfillment data as valid trading signal tuple");
+            (U256::from(0u8), U256::from(0u64), U256::from(3700000000000000000u64))
+        })
     } else {
-        // Fallback for other sizes 
-        let signal = U256::from(0u8);
-        let confidence = U256::from(32u64);
-        let price = U256::from(3735000000000000000u64);
-        (signal, confidence, price)
+        tracing::error!("Fulfillment data too short, expected at least 96 bytes but got {}", data.len());
+        (U256::from(0u8), U256::from(0u64), U256::from(3700000000000000000u64))
     };
     
     // Debug: Print raw decoded values

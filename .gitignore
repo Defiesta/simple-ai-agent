@@ -2,6 +2,8 @@
 cache/
 out/
 
+.env
+
 # Ignores development broadcast logs
 broadcast/
 
@@ -16,4 +18,4 @@ target/
 # Ignore generated files
 contracts/src/ImageID.sol
 contracts/test/Elf.sol
-.env
+

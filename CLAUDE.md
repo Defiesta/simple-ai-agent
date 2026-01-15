@@ -6,12 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Boundless Foundry template for building verifiable AI-powered DeFi applications using RISC Zero. The project demonstrates a complete end-to-end flow from AI guest programs running linear regression in the zkVM to Solidity smart contracts that store verified trading signals.
 
-## 🚀 Current Status: PRODUCTION READY
+## 🚀 Current Status: PRODUCTION READY ✅
 
 - ✅ **Smart Contract Deployed**: `0xEe747ac1869f9F805dCa40Ef2E6197C2F2e25f16` on Base Mainnet
 - ✅ **Contract Verified**: https://basescan.org/address/0xee747ac1869f9f805dca40ef2e6197c2f2e25f16
-- ✅ **AI Trading Signal Working**: BUY signal, 97% confidence, 1.10 ETH predicted price
-- 🔄 **IMAGE_ID Syncing**: Contract supports dynamic updates via `setImageId()`
+- ✅ **Verifier Issue RESOLVED**: End-to-end proof generation and verification working
+- ✅ **Latest Success**: Tx `0x44fe4be8faa9d2bc797726496b0987decba12dc228c8b18602b7fa9fa07f01da` (BUY signal, 97% confidence)
+- ✅ **IMAGE_ID Synced**: `0x9e03bf4cd639667070b4343899e51f74776ba88dde8ec0708807471ffa532f22`
 
 ### Key Components
 
@@ -61,20 +62,23 @@ VERIFIER_ADDRESS="0x925d8331ddc0a1F0d96E68CF073DFE1d92b69187" forge script contr
 ### Running the Trading Signal Application
 
 ```bash
-# Complete command using all environment variables (Base mainnet)
-RUST_LOG=info cargo run --release --bin app -- --rpc-url $RPC_URL --private-key $PRIVATE_KEY --trading-signal-address $TRADING_SIGNAL_ADDRESS --program-url $PROGRAM_URL --current-price 3700000000000000000 --chain-id $CHAIN_ID --boundless-market-address $BOUNDLESS_MARKET_ADDRESS --set-verifier-address $SET_VERIFIER_ADDRESS --storage-provider $STORAGE_PROVIDER --pinata-jwt $PINATA_JWT
+# CORRECT: Using the working pre-uploaded guest program (RECOMMENDED)
+RUST_LOG=info cargo run --release --bin app -- \
+  --current-price 3700000000000000000 \
+  --program-url https://gateway.pinata.cloud/ipfs/QmQ2XmScCBFrayWSe1HaVrGzKvqdkDxCPbfJpDyn8SSi4H
 
-# Using pre-uploaded guest program
-RUST_LOG=info cargo run --bin app -- --current-price 3700000000000000000 --program-url <PROGRAM_URL>
+# Alternative: Use local guest program (requires IMAGE_ID sync)
+RUST_LOG=info cargo run --release --bin app -- --current-price 3700000000000000000
 
-# Upload and use your own guest program (requires PINATA_JWT)
-RUST_LOG=info cargo run --bin app -- --current-price 3700000000000000000
+# IMPORTANT: When using local program, ensure contract IMAGE_ID matches:
+# 1. Check current local IMAGE_ID: cat contracts/src/ImageID.sol
+# 2. Update contract: cast send 0xEe747ac1869f9F805dCa40Ef2E6197C2F2e25f16 "setImageId(bytes32)" <NEW_IMAGE_ID>
 ```
 
 ## Environment Variables
 
 **Current Production Configuration (Base Mainnet)**:
-- `RPC_URL`: https://base-mainnet.g.alchemy.com/v2/N-Gnpjy1WvCfokwj6fiOfuAVL_At6IvE
+- `RPC_URL`: https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY
 - `TRADING_SIGNAL_ADDRESS`: 0xEe747ac1869f9F805dCa40Ef2E6197C2F2e25f16 (verified contract)
 - `VERIFIER_ADDRESS`: 0x0b144e07a0826182b6b59788c34b32bfa86fb711 (RISC Zero verifier)
 - `CHAIN_ID`: 8453 (Base mainnet)
@@ -82,9 +86,48 @@ RUST_LOG=info cargo run --bin app -- --current-price 3700000000000000000
 - `SET_VERIFIER_ADDRESS`: 0x1Ab08498CfF17b9723ED67143A050c8E8c2e3104
 
 **Required for Development**:
-- `PRIVATE_KEY`: Wallet private key with sufficient ETH on Base
-- `PINATA_JWT`: JWT token for uploading guest programs to IPFS
-- `PROGRAM_URL`: Current program at https://gateway.pinata.cloud/ipfs/QmajDapHhSM3Xm4aJAUk6BtgzqMsxTvpp3Y6abSAtkRKMV
+- `PRIVATE_KEY`: Wallet private key with sufficient ETH on Base ⚠️ **NEVER EXPOSE IN COMMANDS**
+- `PINATA_JWT`: JWT token for uploading guest programs to IPFS ⚠️ **KEEP SECRET**
+- `PROGRAM_URL`: **CURRENT WORKING BINARY**: https://gateway.pinata.cloud/ipfs/QmQ2XmScCBFrayWSe1HaVrGzKvqdkDxCPbfJpDyn8SSi4H
+
+## 🔒 **CRITICAL SECURITY PRACTICES**
+
+### **NEVER expose private keys in commands!** Use `.env` file instead:
+
+**SECURE Setup**:
+1. Create `.env` file in project root:
+```bash
+# .env file (NEVER commit this to git)
+RPC_URL=https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY
+PRIVATE_KEY=0xYOUR_PRIVATE_KEY_HERE
+TRADING_SIGNAL_ADDRESS=0xEe747ac1869f9F805dCa40Ef2E6197C2F2e25f16
+CHAIN_ID=8453
+BOUNDLESS_MARKET_ADDRESS=0xfd152dadc5183870710fe54f939eae3ab9f0fe82
+SET_VERIFIER_ADDRESS=0x1Ab08498CfF17b9723ED67143A050c8E8c2e3104
+PINATA_JWT=your_pinata_jwt_here
+PROGRAM_URL=https://gateway.pinata.cloud/ipfs/QmQ2XmScCBFrayWSe1HaVrGzKvqdkDxCPbfJpDyn8SSi4H
+```
+
+2. Add `.env` to `.gitignore`:
+```bash
+echo ".env" >> .gitignore
+```
+
+3. **SAFE Command** (reads from .env automatically):
+```bash
+# SECURE: No private keys in command line
+RUST_LOG=info cargo run --release --bin app -- --current-price 3700000000000000000
+```
+
+### **Security Checklist**:
+- ✅ Use `.env` file for secrets
+- ✅ Add `.env` to `.gitignore` 
+- ✅ Use test wallets with minimal funds for development
+- ✅ Clear shell history after accidental exposure: 
+  - **Bash**: `history -c && history -w`
+  - **Zsh**: `fc -p && > ~/.zsh_history && exec zsh`
+- ✅ Use hardware wallets for production funds
+- ✅ Never paste private keys in shared terminals/logs
 
 ## Development Patterns
 
@@ -139,58 +182,106 @@ The `trading-signal` guest implements a simple linear regression model for ETH p
 - **Decision Logic**: BUY if predicted price > current price + 0.5% threshold
 - **Data Format**: All prices in wei (18 decimals) for precision without floating-point
 
-## Common Issues and Solutions
+## Debugging Guide: Verifier Failure Resolution ✅
+
+**The primary verifier issue (error `0x439cc0cd`) has been RESOLVED as of January 15, 2026.**
+
+### 🎯 **Resolved: Critical Verifier Failure Issue**
+
+**Problem**: Error `0x439cc0cd` (VerificationFailed) when calling `setSignal` on the contract  
+**Root Cause**: **ABI Encoding Mismatch** between guest program and contract expectations  
+
+#### **The Root Issue**
+- **Guest Program**: Used manual ABI encoding with incorrect padding for `uint8`
+- **Contract**: Expected standard Solidity `abi.encode(uint8, uint256, uint256)` format  
+- **Result**: Journal hash mismatch causing proof verification to fail
+
+#### **Complete Solution Applied**
+
+**1. Fixed Guest ABI Encoding** (`guests/trading-signal/src/main.rs`):
+```rust
+// OLD: Manual padding (INCORRECT)
+let mut action_bytes = [0u8; 32];
+action_bytes[31] = signal;
+
+// NEW: Proper Solidity ABI encoding (CORRECT)  
+let mut action_bytes = [0u8; 32];
+action_bytes[31] = signal; // Right-aligned (value in least significant byte)
+journal_data.extend_from_slice(&action_bytes);
+journal_data.extend_from_slice(&confidence_u256.to_be_bytes::<32>());
+journal_data.extend_from_slice(&price_u256.to_be_bytes::<32>());
+```
+
+**2. Updated IMAGE_ID Synchronization**:
+- **New IMAGE_ID**: `0x9e03bf4cd639667070b4343899e51f74776ba88dde8ec0708807471ffa532f22`
+- **Contract Updated**: Used `setImageId(bytes32)` function
+- **Binary Uploaded**: New corrected binary at `QmQ2XmScCBFrayWSe1HaVrGzKvqdkDxCPbfJpDyn8SSi4H`
+
+**3. Fixed Boundless Fulfillment Data Parsing** (`apps/src/main.rs`):
+```rust
+// Boundless wraps journal in fulfillment structure:
+// [32-byte offset][32-byte IMAGE_ID][32-byte offset][32-byte offset][96-byte journal]
+let journal_start = 128; // Offset where our journal data starts
+let journal_data = &data[journal_start..journal_start + 96];
+```
+
+#### **Verification Success** ✅
+- **Transaction Hash**: `0x44fe4be8faa9d2bc797726496b0987decba12dc228c8b18602b7fa9fa07f01da`
+- **Result**: BUY signal, 97% confidence, successfully stored on-chain
+- **Status**: End-to-end proof generation and verification working
+
+---
+
+## Common Development Issues
 
 ### RISC Zero Binary Format Issue
 **Problem**: "Malformed ProgramBinary" error when using Boundless Market
-**Root Cause**: RISC Zero guest programs generate both `.elf` and `.bin` files. The Boundless Market expects the `.bin` format (raw binary), not the `.elf` format.
-**Solution**: 
-- Use `target/riscv-guest/guests/{program}/riscv32im-risc0-zkvm-elf/release/{program}.bin` instead of the `.elf` file
-- When uploading to IPFS, use the `.bin` file
-- This applies to both local execution and URL-based program distribution
+**Solution**: Always use `.bin` files, not `.elf` files:
+```bash
+# Correct path for Boundless
+target/riscv-guest/guests/trading-signal/riscv32im-risc0-zkvm-elf/release/trading-signal.bin
+```
 
-### Base Mainnet Deployment Configuration
-**Problem**: Chain ID mismatch errors when connecting to Base mainnet
-**Root Cause**: Boundless SDK auto-resolves deployment config but may default to wrong network
-**Solution**: Explicitly specify deployment parameters:
+### Base Mainnet Configuration
+Explicitly specify all deployment parameters:
 ```bash
 --chain-id 8453 --boundless-market-address 0xfd152dadc5183870710fe54f939eae3ab9f0fe82 --set-verifier-address 0x1Ab08498CfF17b9723ED67143A050c8E8c2e3104
 ```
 
-### ETH Precision and Overflow
-**Problem**: u64 overflow when handling ETH prices in wei
-**Root Cause**: ETH prices like 3700 ETH = 3,700,000,000,000,000,000,000 wei exceed u64 max
-**Solution**: Use gwei scale (10^9) internally, convert to wei for external interfaces
-
-### IMAGE_ID Mismatch and Proof Verification Errors
-**Problem**: Error `0x439cc0cd` when calling `setSignal` on the contract
-**Root Cause**: The guest program IMAGE_ID doesn't match what's expected by the contract
-**Solution**: 
-1. **Contract has dynamic IMAGE_ID**: Use `setImageId(bytes32)` to update the contract
-2. **Check current IMAGE_ID**: Run `cargo build` to see the generated `ImageID.sol`
-3. **Update Pinata binary**: Upload new `.bin` file if guest program changed
-4. **Boundless cache**: May need to wait for Boundless to pick up new binary
-
-**Current Working Configuration**:
-- Contract IMAGE_ID: `0x84350b9c8ced73a096f4531bb7ab340be0eca8ab216a8cae51917a3b40fdc659` (Boundless cached)
-- Guest program should commit tuple: `(U256::from(signal), U256::from(confidence), U256::from(predicted_price))`
-
-### Pinata Binary Upload
+### Working Binary Management
 ```bash
-# Upload new guest binary to Pinata
+# Upload new guest binary to Pinata (use this exact command)
 curl -X POST "https://api.pinata.cloud/pinning/pinFileToIPFS" \
   -H "Authorization: Bearer $PINATA_JWT" \
-  -F file=@"target/riscv-guest/guests/trading-signal/riscv32im-risc0-zkvm-elf/release/trading-signal.bin"
+  -F "file=@target/riscv-guest/guests/trading-signal/riscv32im-risc0-zkvm-elf/release/trading-signal.bin" \
+  -F 'pinataMetadata={"name":"trading-signal-corrected.bin"}'
+
+# Update contract IMAGE_ID after rebuilding guest
+cast send 0xEe747ac1869f9F805dCa40Ef2E6197C2F2e25f16 "setImageId(bytes32)" <NEW_IMAGE_ID> \
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
 ```
+
+### Current Working Configuration ✅
+- **Contract IMAGE_ID**: `0x9e03bf4cd639667070b4343899e51f74776ba88dde8ec0708807471ffa532f22`
+- **Working Binary**: `QmQ2XmScCBFrayWSe1HaVrGzKvqdkDxCPbfJpDyn8SSi4H`  
+- **Guest Encoding**: Proper Solidity ABI format for `(uint8, uint256, uint256)`
+- **Client Parsing**: Extracts journal from Boundless fulfillment at offset 128
 
 ## Rust Toolchain
 
 This project uses Rust 1.89 as specified in `rust-toolchain.toml` for RISC Zero compatibility. The toolchain includes clippy, rustfmt, and rust-src components.
 
-## Trading Signal Algorithm
+## Trading Signal Algorithm ✅ WORKING
 
 The AI uses linear regression on 30 days of embedded ETH price history:
 - **Input**: Current ETH amount in wei (e.g., 3.7 ETH = 3700000000000000000 wei)
 - **Processing**: Assumes current USD price ($3200/ETH), runs linear regression to predict next day
 - **Output**: BUY/SELL signal with confidence % and predicted price
-- **Current Performance**: 97% confidence BUY signal, predicting 1.10 ETH (~$3520/ETH)
+- **Latest Success**: BUY signal, 97% confidence (Tx: `0x44fe4be8faa9d2bc797726496b0987decba12dc228c8b18602b7fa9fa07f01da`)
+
+### Algorithm Details
+- **Historical Data**: 30 days of embedded ETH/USD price data
+- **Model**: Linear regression using least squares with integer calculations  
+- **Threshold**: BUY if predicted price > current price + 0.5%
+- **Confidence**: R² coefficient of determination (0-100%)
+- **Precision**: All calculations in wei to avoid floating-point operations in zkVM

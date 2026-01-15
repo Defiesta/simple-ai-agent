@@ -133,20 +133,21 @@ fn main() {
     let signal = if predicted_usd_price_per_eth > price_threshold { 1u8 } else { 0u8 };
     
     // Create the exact same journal format as the contract expects: abi.encode(uint8, uint256, uint256)  
-    // Prepare the values
+    // Prepare the values - use proper Solidity ABI encoding matching exactly what the contract test does
     let confidence_u256 = U256::from(confidence);
     let price_u256 = U256::from(predicted_price_wei);
     
-    // Use manual ABI encoding to handle the u8/uint8 type correctly
+    // Use manual encoding that exactly matches Solidity's abi.encode for (uint8, uint256, uint256)
     let mut journal_data = Vec::new();
-    // uint8 gets padded to 32 bytes with leading zeros
-    let mut action_bytes = vec![0u8; 32];
-    action_bytes[31] = signal; // Put the actual value in the last byte
+    
+    // For Solidity abi.encode, uint8 is right-aligned in 32 bytes (big-endian padding)
+    let mut action_bytes = [0u8; 32];
+    action_bytes[31] = signal; // Right-aligned (value in least significant byte)
     journal_data.extend_from_slice(&action_bytes);
     
-    // U256 values are already 32 bytes
-    journal_data.extend_from_slice(&confidence_u256.abi_encode());
-    journal_data.extend_from_slice(&price_u256.abi_encode());
+    // U256 values are encoded as 32-byte big-endian
+    journal_data.extend_from_slice(&confidence_u256.to_be_bytes::<32>());
+    journal_data.extend_from_slice(&price_u256.to_be_bytes::<32>());
     
     env::commit_slice(&journal_data);
 }

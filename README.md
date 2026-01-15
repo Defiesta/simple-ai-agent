@@ -20,14 +20,14 @@ The AI agent analyzes historical ETH price data using linear regression to predi
    # Edit .env with your actual values
    ```
 
-3. Run the trading signal system:
+3. Run with the full production configuration:
    ```bash
-   RUST_LOG=info cargo run --release --bin app
+   RUST_LOG=info cargo run --release --bin app -- --current-price 3700000000000000000
    ```
 
-   Or run with the full production configuration:
+   or Run the trading signal system:
    ```bash
-   RUST_LOG=info cargo run --release --bin app -- --rpc-url $RPC_URL --private-key $PRIVATE_KEY --trading-signal-address $TRADING_SIGNAL_ADDRESS --program-url $PROGRAM_URL --current-price 3700000000000000000 --chain-id $CHAIN_ID --boundless-market-address $BOUNDLESS_MARKET_ADDRESS --set-verifier-address $SET_VERIFIER_ADDRESS --storage-provider $STORAGE_PROVIDER --pinata-jwt $PINATA_JWT
+   RUST_LOG=info cargo run --release --bin app
    ```
 ## Architecture
 
@@ -38,8 +38,8 @@ The system consists of:
 
 ## Configuration
 
-The system is configured for Base mainnet with the following deployed contract:
-- TradingSignal: `0xEe747ac1869f9F805dCa40Ef2E6197C2F2e25f16`
+The system is configured for Ethereum Sepolia testnet with the following deployed contract:
+- TradingSignal: `T0x1B4274Fea65a7131A0Ccd538b780b239dFB35B60`
 
 ## Development
 
