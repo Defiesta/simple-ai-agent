@@ -40,8 +40,8 @@ mod trading_signal {
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Current ETH price in wei for prediction input.
-    #[clap(long, default_value = "3700000000000000000")]
+    /// Current ETH price in USD (e.g., 3200 means $3200 per ETH).
+    #[clap(long, default_value = "3200")]
     current_price: u64,
     /// URL of the Ethereum RPC endpoint.
     #[clap(short, long, env)]
@@ -100,7 +100,7 @@ async fn run_trading_signal_mode(args: &Args, client: &Client) -> Result<()> {
     let contract_address = args.trading_signal_address;
     let current_price = args.current_price;
 
-    tracing::info!("Current ETH price: {} wei ({:.2} ETH)", current_price, current_price as f64 / 1e18);
+    tracing::info!("Current ETH price: ${} USD", current_price);
     let input_bytes = U256::from(current_price).abi_encode();
 
     // Build the request based on whether program URL is provided
@@ -153,7 +153,7 @@ async fn run_trading_signal_mode(args: &Args, client: &Client) -> Result<()> {
         } else {
             tracing::error!("Failed to decode journal data at expected offset");
             // Return safe fallback values
-            (U256::from(0u8), U256::from(0u64), U256::from(3700000000000000000u64))
+            (U256::from(0u8), U256::from(0u64), U256::from(3200u64))
         }
     } else if data.len() >= 96 {
         // Fallback: try to find a 96-byte window that decodes properly
@@ -167,7 +167,7 @@ async fn run_trading_signal_mode(args: &Args, client: &Client) -> Result<()> {
                 let confidence = decoded_tuple.1.as_limbs()[0];
                 let price = decoded_tuple.2.as_limbs()[0];
                 
-                if signal <= 1 && confidence <= 100 && price > 100_000_000_000_000_000 { // > 0.1 ETH
+                if signal <= 1 && confidence <= 100 && price >= 1000 && price <= 50000 { // USD price range $1000-$50000
                     found_tuple = Some(decoded_tuple);
                     tracing::info!("Found valid ABI tuple at offset {}: signal={}, confidence={}, price={}", 
                                   start_offset, signal, confidence, price);
@@ -178,7 +178,7 @@ async fn run_trading_signal_mode(args: &Args, client: &Client) -> Result<()> {
         
         found_tuple.unwrap_or_else(|| {
             tracing::error!("Failed to decode fulfillment data as valid trading signal tuple");
-            (U256::from(0u8), U256::from(0u64), U256::from(3700000000000000000u64))
+            (U256::from(0u8), U256::from(0u64), U256::from(3200u64))
         })
     } else {
         tracing::error!("Fulfillment data too short, expected at least 96 bytes but got {}", data.len());
@@ -199,11 +199,10 @@ async fn run_trading_signal_mode(args: &Args, client: &Client) -> Result<()> {
 
     let action_str = if signal == 1 { "BUY" } else { "SELL" };
     tracing::info!(
-        "Trading Signal: {} ETH (confidence: {}%, predicted price: {} wei / {:.2} ETH)",
+        "Trading Signal: {} ETH (confidence: {}%, predicted price: ${} USD)",
         action_str,
         confidence,
-        predicted_price,
-        predicted_price as f64 / 1e18
+        predicted_price
     );
 
     // Interact with the TradingSignal contract

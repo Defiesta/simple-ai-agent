@@ -22,7 +22,7 @@ The AI agent analyzes historical ETH price data using linear regression to predi
 
 3. Run with the full production configuration:
    ```bash
-   RUST_LOG=info cargo run --release --bin app -- --current-price 3700000000000000000
+   RUST_LOG=info cargo run --release --bin app -- --current-price 3200
    ```
 
    or Run the trading signal system:

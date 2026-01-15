@@ -64,11 +64,11 @@ VERIFIER_ADDRESS="0x925d8331ddc0a1F0d96E68CF073DFE1d92b69187" forge script contr
 ```bash
 # CORRECT: Using the working pre-uploaded guest program (RECOMMENDED)
 RUST_LOG=info cargo run --release --bin app -- \
-  --current-price 3700000000000000000 \
+  --current-price 3200 \
   --program-url https://gateway.pinata.cloud/ipfs/QmQ2XmScCBFrayWSe1HaVrGzKvqdkDxCPbfJpDyn8SSi4H
 
 # Alternative: Use local guest program (requires IMAGE_ID sync)
-RUST_LOG=info cargo run --release --bin app -- --current-price 3700000000000000000
+RUST_LOG=info cargo run --release --bin app -- --current-price 3200
 
 # IMPORTANT: When using local program, ensure contract IMAGE_ID matches:
 # 1. Check current local IMAGE_ID: cat contracts/src/ImageID.sol
@@ -116,7 +116,7 @@ echo ".env" >> .gitignore
 3. **SAFE Command** (reads from .env automatically):
 ```bash
 # SECURE: No private keys in command line
-RUST_LOG=info cargo run --release --bin app -- --current-price 3700000000000000000
+RUST_LOG=info cargo run --release --bin app -- --current-price 3800
 ```
 
 ### **Security Checklist**:
@@ -274,9 +274,9 @@ This project uses Rust 1.89 as specified in `rust-toolchain.toml` for RISC Zero 
 ## Trading Signal Algorithm ✅ WORKING
 
 The AI uses linear regression on 30 days of embedded ETH price history:
-- **Input**: Current ETH amount in wei (e.g., 3.7 ETH = 3700000000000000000 wei)
-- **Processing**: Assumes current USD price ($3200/ETH), runs linear regression to predict next day
-- **Output**: BUY/SELL signal with confidence % and predicted price
+- **Input**: Current ETH price in USD (e.g., 3200 means $3200 per ETH)
+- **Processing**: Uses current USD price, runs linear regression to predict next day
+- **Output**: BUY/SELL signal with confidence % and predicted USD price
 - **Latest Success**: BUY signal, 97% confidence (Tx: `0x44fe4be8faa9d2bc797726496b0987decba12dc228c8b18602b7fa9fa07f01da`)
 
 ### Algorithm Details
@@ -284,4 +284,4 @@ The AI uses linear regression on 30 days of embedded ETH price history:
 - **Model**: Linear regression using least squares with integer calculations  
 - **Threshold**: BUY if predicted price > current price + 0.5%
 - **Confidence**: R² coefficient of determination (0-100%)
-- **Precision**: All calculations in wei to avoid floating-point operations in zkVM
+- **Precision**: All calculations in USD integers to avoid floating-point operations in zkVM
